@@ -65,6 +65,13 @@ parser.add_argument(
     type=str,
     nargs='?',
     help='specify optional video file')
+parser.add_argument(
+    'frame_keypoints',
+    metavar='frame_keypoints',
+    type=int,
+    nargs='?',
+    help='specify optional frame_keypoints',
+    default=50)
 args = parser.parse_args()
 
 #####################################################################
@@ -128,41 +135,58 @@ if (((args.video_file) and (cap.open(str(args.video_file))))
         # *** BEGIN TODO - outline of required mosaicking code ***
 
         # detect features in current image
+                
+        frame_keypoints, frame_descriptors = ms.get_features(frame, 400)
 
         # if enough features present in image
+        if (len(frame_keypoints) > args.frame_keypoints):
 
             # if current mosaic image is empty (i.e. at start of process)
+            if (mosaic is None):
 
                 # copy current frame to mosaic image
+                mosaic = frame
 
                 # continue to next frame (i.e. next loop iteration)
+                continue
 
             # else
-
+            else:
                 # get features in current mosaic (or similar)
                 # (may need to check features are found, or can assume OK)
+                mosaic_keypoints, mosaic_descriptors = ms.get_features(mosaic, 400)
 
                 # compute matches between current image and mosaic
                 # (cv2.drawMatches() may be useful for debugging here)
+                matches = ms.match_features(frame_descriptors, mosaic_descriptors, 50, 0.7)
+                if len(matches) < 25:
+                    continue
+
+                # cv2.drawMatches(frame, frame_keypoints, mosaic, mosaic_keypoints, matches, None)
 
                 # compute homography H between current image and mosaic
+                homography, mask = ms.compute_homography(frame_keypoints, mosaic_keypoints, matches)
+
+                if homography is None:
+                    continue
 
                 # calculate the required size of the new mosaic image
                 # if we add the current frame into it
+                size, offset = ms.calculate_size(frame.shape, mosaic.shape, homography)
 
                 # merge the current frame into the new mosaic using
                 # knowldge of homography H + required sise of image
+                mosaic = ms.merge_images(frame, mosaic, homography, size, offset)
 
                 # (optional) - resize output mosaic to be % of full size
                 # so it fits on screen or scale in porportion to screen size
 
         # else when not enough features present in image
+        else:
             # (cv2.drawKeypoints() may be useful for debugging here)
 
             # continue to next frame (i.e. next loop iteration)
-
-        if (mosaic is None):  # *** TODO REMOVE this part ***
-            mosaic = frame  # only here so code runs at first time
+            continue
 
         # *** END TODO outline of required mosaicking code ***
 
